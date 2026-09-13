@@ -70,6 +70,7 @@ export default function PagosPage({ session }) {
                 <th>Pasarela</th>
                 <th>Transacción</th>
                 <th>Fecha</th>
+                <th>Comprobante</th>
                 <th className="right">Total</th>
               </tr>
             </thead>
@@ -80,6 +81,20 @@ export default function PagosPage({ session }) {
                   <td>{payment.proveedor}</td>
                   <td>{payment.transaccion_pasarela_id}</td>
                   <td>{formatDate(payment.confirmado_en)}</td>
+                  <td>
+                    {payment.comprobante_numero ? (
+                      <a
+                        className="table-action-link"
+                        href={payment.comprobante_pdf_url || `/api/payments/receipts/${payment.comprobante_numero}.pdf`}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Ver PDF
+                      </a>
+                    ) : (
+                      <span>Pendiente</span>
+                    )}
+                  </td>
                   <td className="right">{formatCents(payment.total_centavos)}</td>
                 </tr>
               ))}

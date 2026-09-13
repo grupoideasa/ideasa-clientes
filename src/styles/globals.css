@@ -1162,6 +1162,22 @@ td span {
   font-size: 0.86rem;
 }
 
+.table-action-link {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  border-radius: var(--radius);
+  background: rgba(0, 136, 189, 0.1);
+  color: var(--brand-blue-dark);
+  padding: 0 12px;
+  font-size: 0.86rem;
+  font-weight: 900;
+}
+
+.table-action-link:hover {
+  background: rgba(0, 136, 189, 0.16);
+}
+
 .right {
   text-align: right;
 }

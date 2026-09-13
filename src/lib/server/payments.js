@@ -29,6 +29,17 @@ function sha256(value) {
   return crypto.createHash('sha256').update(value).digest('hex')
 }
 
+function jsonText(value) {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string') return value
+
+  try {
+    return JSON.stringify(value)
+  } catch (error) {
+    return JSON.stringify({ serializationError: true })
+  }
+}
+
 function signPaymentPayload(payload) {
   return crypto.createHmac('sha256', requireEnv('CLIENT_SESSION_SECRET')).update(payload).digest('base64url')
 }
@@ -557,6 +568,8 @@ export async function listPaymentOrders(codClientes) {
             moneda
             estado
             confirmado_en
+            comprobante_numero
+            comprobante_pdf_url
           }
         }
       `,
@@ -647,7 +660,7 @@ export async function insertPaymentAttempt({ order, provider, checkoutUrl, provi
           referencia: order.referencia,
           estado: 'iniciado',
           checkout_url: checkoutUrl,
-          respuesta_pasarela: providerPayload
+          respuesta_pasarela: jsonText(providerPayload)
         }
       }
     )
@@ -735,8 +748,8 @@ export async function recordGatewayEvent({ provider, eventId, headers, payload, 
         object: {
           proveedor: provider,
           evento_id: eventId,
-          headers,
-          payload,
+          headers: jsonText(headers),
+          payload: jsonText(payload),
           firma_valida: valid
         }
       }
@@ -795,6 +808,52 @@ async function findExistingPayment(provider, gatewayTransactionId) {
 
   return data.pagos?.[0] || null
 }
+
+async function markPaymentAttemptsApproved({ provider, reference, gatewayTransactionId, payload }) {
+  try {
+    await hasuraRequest(
+      `
+        mutation MarkPaymentAttemptsApproved(
+          $provider: String!
+          $reference: String!
+          $gatewayTransactionId: String!
+          $payload: String
+          $updatedAt: datetimeoffset!
+        ) {
+          update_intentos_pago(
+            where: {
+              proveedor: { _eq: $provider }
+              referencia: { _eq: $reference }
+            }
+            _set: {
+              estado: "aprobado"
+              transaccion_pasarela_id: $gatewayTransactionId
+              respuesta_pasarela: $payload
+              actualizado_en: $updatedAt
+            }
+          ) {
+            affected_rows
+          }
+        }
+      `,
+      {
+        provider,
+        reference,
+        gatewayTransactionId,
+        payload: jsonText(payload),
+        updatedAt: new Date().toISOString()
+      }
+    )
+  } catch (error) {
+    console.warn('Payment attempt could not be marked as approved', {
+      provider,
+      reference,
+      gatewayTransactionId,
+      error: error.message
+    })
+  }
+}
+
 export async function registerApprovedPayment({
   provider,
   reference,
@@ -845,7 +904,16 @@ export async function registerApprovedPayment({
 
   const existingPayment = await findExistingPayment(provider, gatewayTransactionId)
 
-  if (existingPayment) return existingPayment
+  if (existingPayment) {
+    await markPaymentAttemptsApproved({
+      provider,
+      reference,
+      gatewayTransactionId,
+      payload: rawPayload
+    })
+
+    return existingPayment
+  }
 
   const receiptNumber = generateReceiptNumber(reference)
   const receiptGeneratedAt = new Date().toISOString()
@@ -874,7 +942,7 @@ export async function registerApprovedPayment({
         comprobante_pdf_path: `/api/payments/receipts/${receiptNumber}.pdf`,
         comprobante_pdf_url: `/api/payments/receipts/${receiptNumber}.pdf`,
         comprobante_generado_en: receiptGeneratedAt,
-        payload_pasarela: rawPayload
+        payload_pasarela: jsonText(rawPayload)
       }
     }
   )
@@ -917,6 +985,13 @@ export async function registerApprovedPayment({
     `,
     { id: order.id, updatedAt: new Date().toISOString() }
   )
+
+  await markPaymentAttemptsApproved({
+    provider,
+    reference,
+    gatewayTransactionId,
+    payload: rawPayload
+  })
 
   return payment
 }
