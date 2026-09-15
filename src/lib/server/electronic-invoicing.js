@@ -377,7 +377,8 @@ function parseTheFactorySoapResponse(method, xml) {
     mensaje: firstLocalElementValue(result, 'mensaje'),
     nombre: firstLocalElementValue(result, 'nombre'),
     resultado: firstLocalElementValue(result, 'resultado'),
-    tipoCufe: firstLocalElementValue(result, 'tipoCufe')
+    tipoCufe: firstLocalElementValue(result, 'tipoCufe'),
+    resultXml: result
   }
 }
 
@@ -515,6 +516,106 @@ function customerEmailFromXml(xml) {
   ].flatMap(emailCandidatesFromText)
 
   return candidates[0] || ''
+}
+
+function uniqueValues(values) {
+  return [...new Set(values.map(value => cleanText(value)).filter(Boolean))]
+}
+
+function parseBoolLike(value) {
+  const normalized = cleanText(value).toLowerCase()
+
+  if (['true', '1', 'si', 'sí'].includes(normalized)) return true
+  if (['false', '0', 'no'].includes(normalized)) return false
+
+  return null
+}
+
+function deliveryEmailsFromSegment(segment) {
+  const emailNode = firstLocalElementSegment(segment, 'email')
+  const candidates = [
+    ...localElementValues(emailNode || '', 'string'),
+    ...emailCandidatesFromText(emailNode),
+    ...emailCandidatesFromText(segment)
+  ]
+
+  return uniqueValues(candidates.map(normalizeEmail).filter(isValidEmail))
+}
+
+function deliveryChannelLabel(value) {
+  const normalized = cleanText(value).toLowerCase()
+
+  if (!normalized || normalized === '0' || normalized.includes('mail') || normalized.includes('correo')) {
+    return 'Correo electronico'
+  }
+
+  return compact(value)
+}
+
+function deliveryStatusLabel(status, description) {
+  const normalizedStatus = cleanText(status)
+  const normalizedDescription = cleanText(description)
+  const descriptionKey = normalizedDescription.toLowerCase()
+
+  if (normalizedStatus === '200' || descriptionKey === 'send' || descriptionKey.includes('exitos')) {
+    return 'Enviado'
+  }
+
+  return normalizedDescription || normalizedStatus || 'Entrega registrada'
+}
+
+function deliveryHistoryFromStatus(result, lookup) {
+  const resultXml = result?.resultXml || ''
+  const entries = localElementValues(resultXml, 'HistorialDeEntrega').map((segment, index) => {
+    const emails = deliveryEmailsFromSegment(segment)
+    const entregaEstatus = compact(firstLocalElementValue(segment, 'entregaEstatus'))
+    const entregaDescripcion = compact(firstLocalElementValue(segment, 'entregaEstatusDescripcion'))
+    const entregaFecha = compact(firstLocalElementValue(segment, 'entregaFecha'))
+    const leidoEstatus = compact(firstLocalElementValue(segment, 'LeidoEstatus'))
+    const leidoFecha = compact(firstLocalElementValue(segment, 'LeidoFecha'))
+    const recepcionEmailEstatus = compact(firstLocalElementValue(segment, 'recepcionEmailEstatus'))
+    const recepcionEmailFecha = compact(firstLocalElementValue(segment, 'recepcionEmailFecha'))
+    const recepcionEmailComentario = compact(firstLocalElementValue(segment, 'recepcionEmailComentario'))
+
+    return {
+      id: String(index + 1),
+      canal: deliveryChannelLabel(firstLocalElementValue(segment, 'canalDeEntrega')),
+      emailHints: emails.map(maskEmail),
+      entregaEstatus,
+      entregaDescripcion,
+      entregaEstadoLabel: deliveryStatusLabel(entregaEstatus, entregaDescripcion),
+      entregaFecha,
+      fechaProgramada: compact(firstLocalElementValue(segment, 'fechaProgramada')),
+      leidoEstatus,
+      leidoFecha,
+      leido: parseBoolLike(leidoEstatus),
+      recepcionEmailEstatus,
+      recepcionEmailFecha,
+      recepcionEmailComentario
+    }
+  })
+  const sent = entries.some(entry => {
+    const status = cleanText(entry.entregaEstatus).toLowerCase()
+    const description = cleanText(entry.entregaDescripcion).toLowerCase()
+
+    return status === '200' || description.includes('exitos')
+  })
+
+  return {
+    factura: theFactoryDocumentId(lookup),
+    empresa: lookup.empresa,
+    empresaNombre: companyName(lookup.empresa),
+    codigo: result.codigo,
+    resultado: result.resultado,
+    mensaje: result.mensaje,
+    descripcionEstatusDocumento: compact(firstLocalElementValue(resultXml, 'descripcionEstatusDocumento')),
+    esValidoDIAN: parseBoolLike(firstLocalElementValue(resultXml, 'esValidoDIAN')),
+    fechaDocumento: compact(firstLocalElementValue(resultXml, 'fechaDocumento')),
+    fechaAceptacionDIAN: compact(firstLocalElementValue(resultXml, 'fechaAceptacionDIAN')),
+    poseeRepresentacionGrafica: parseBoolLike(firstLocalElementValue(resultXml, 'poseeRepresentacionGrafica')),
+    enviado: sent,
+    entregas: entries
+  }
 }
 
 function normalizeResendEmails(value) {
@@ -927,4 +1028,25 @@ export async function resendElectronicInvoiceEmail({ token, mode = 'registered',
     codigo: result.codigo,
     resultado: result.resultado
   }
+}
+
+export async function getElectronicInvoiceDeliveryHistory({ token }) {
+  const invoice = verifyInvoiceToken(token)
+  const { v, exp, ...invoiceLookup } = invoice
+  const result = await callTheFactorySoap(
+    'EstadoDocumento',
+    invoiceLookup,
+    {},
+    {
+      expectDocument: false,
+      publicErrorMessage: 'No pudimos consultar el historial de envio de la factura.',
+      publicErrorStatus: 502
+    }
+  )
+
+  if (!result) {
+    throw new PublicInvoiceError('La consulta de historial en TheFactoryHKA no esta configurada.', 503)
+  }
+
+  return deliveryHistoryFromStatus(result, invoiceLookup)
 }

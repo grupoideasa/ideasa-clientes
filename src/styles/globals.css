@@ -708,6 +708,57 @@ select:focus {
   margin-top: 2px;
 }
 
+.delivery-history-dialog {
+  display: grid;
+  gap: 16px;
+}
+
+.delivery-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.delivery-summary-grid div,
+.delivery-history-item {
+  border: 1px solid rgba(var(--main-channel), 0.1);
+  border-radius: var(--radius);
+  background: var(--surface-soft);
+  padding: 14px;
+}
+
+.delivery-summary-grid span,
+.delivery-history-item span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.delivery-summary-grid strong {
+  display: block;
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.25;
+}
+
+.delivery-history-list {
+  display: grid;
+  gap: 12px;
+}
+
+.delivery-history-item {
+  display: grid;
+  gap: 12px;
+}
+
+.delivery-history-item > div strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+}
+
 .request-progress {
   display: grid;
   gap: 9px;
@@ -1546,6 +1597,10 @@ pre {
   }
 
   .resend-mode-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .delivery-summary-grid {
     grid-template-columns: 1fr;
   }
 
