@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/router'
 
 const navItems = [
+  { href: '/clientes/resumen', label: 'Resumen', helper: 'Estado general' },
   { href: '/clientes/facturas', label: 'Mis facturas', helper: 'Cartera y pagos' },
   { href: '/clientes/perfil', label: 'Mi perfil', helper: 'Datos del cliente' },
   { href: '/clientes/pagos', label: 'Mis pagos', helper: 'Órdenes e historial' },
@@ -27,7 +28,7 @@ export default function PortalLayout({ title, session, children }) {
       </Head>
       <div className="portal-shell">
         <aside className="portal-sidebar" aria-label="Menú principal">
-          <Link href="/clientes/facturas" className="sidebar-brand" aria-label="Inicio portal IDEASA">
+          <Link href="/clientes/resumen" className="sidebar-brand" aria-label="Inicio portal IDEASA">
             <Image src="/images/logo-ideasa.png" width={74} height={74} alt="IDEASA" priority />
             <span>
               Portal

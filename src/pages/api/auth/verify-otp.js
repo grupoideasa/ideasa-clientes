@@ -115,7 +115,7 @@ export default async function handler(req, res) {
     }
 
     res.setHeader('Set-Cookie', createClientSessionCookie(client))
-    res.status(200).json({ ok: true, redirectTo: '/clientes/facturas' })
+    res.status(200).json({ ok: true, redirectTo: '/clientes/resumen' })
   } catch (error) {
     sendApiError(res, error)
   }

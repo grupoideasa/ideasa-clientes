@@ -591,6 +591,51 @@ export async function listPaymentOrders(codClientes) {
   }
 }
 
+export async function listAdminPaymentSummary() {
+  try {
+    const data = await hasuraRequest(`
+      query ListAdminPaymentSummary {
+        ordenes_pago(order_by: { creado_en: desc }, limit: 30) {
+          id
+          cod_cliente
+          referencia
+          total_centavos
+          moneda
+          estado
+          proveedor_preferido
+          creado_en
+        }
+        pagos(order_by: { confirmado_en: desc }, limit: 30) {
+          id
+          cod_cliente
+          documento
+          referencia
+          proveedor
+          transaccion_pasarela_id
+          total_centavos
+          moneda
+          estado
+          confirmado_en
+          comprobante_numero
+        }
+      }
+    `)
+
+    return {
+      ordenes: data.ordenes_pago || [],
+      pagos: data.pagos || []
+    }
+  } catch (error) {
+    console.warn('Admin payment summary unavailable', error.message)
+
+    return {
+      ordenes: [],
+      pagos: [],
+      warning: 'No pudimos consultar pagos recientes en este momento.'
+    }
+  }
+}
+
 export async function getPaymentReceiptByNumber(receiptNumber, codClientes) {
   const safeReceiptNumber = String(receiptNumber || '').replace(/\.pdf$/i, '')
 

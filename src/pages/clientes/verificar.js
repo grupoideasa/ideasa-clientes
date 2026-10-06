@@ -30,7 +30,7 @@ export default function VerificarCodigo() {
         body: JSON.stringify({ identifier, code })
       })
 
-      router.push(payload.redirectTo || '/clientes/facturas')
+      router.push(payload.redirectTo || '/clientes/resumen')
     } catch (requestError) {
       setError(requestError.message)
     } finally {
